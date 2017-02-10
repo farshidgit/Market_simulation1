@@ -1,0 +1,78 @@
+from __future__ import division
+from numpy import random as rn
+from theta import theta_buy, theta_sell
+from matplotlib import pyplot as plt
+
+
+class Market:
+    """ A simulation of the market dynamics dS_t = dN_t^p - dN_t^m
+        N_t^p and N_t^m are Cox processes with time and price dependent rates.
+    """
+    def __init__(self, time_horizon, epochs, initial_price, mu_buy_init, mu_sell_init, eta, kappa=0.5):
+        self.time_horizon = time_horizon  # time horizon
+        self.epochs = epochs  # is the number of epochs in each simulation
+        self.initial_price = initial_price  # initial price
+        self.price = [0] * epochs
+        self.price[0] = self.initial_price
+        self.mu_buy_init = mu_buy_init
+        self.mu_sell_init = mu_sell_init
+        self.eta = eta  # is the jump size
+        self.kappa = kappa  # is the reversion rate
+
+    def run_market(self):
+        mo_buy = [0] * (self.epochs + 1)    # buy Market Order 0, 1 vector. mo_buy[i]=1 if MO arrives during (t_i-1,t_i]
+        mo_sell = [0] * (self.epochs + 1)   # including times t=0 and t = time_horizon
+        n_p = [0] * (self.epochs + 1)  # uptick N^positive, including time t=0 and t=time_horizon
+        n_n = [0] * (self.epochs + 1)  # downtick N^negative, including time t=0 and t=time_horizon
+        mu_buy = [None] * (self.epochs + 1)
+        mu_buy[0] = self.mu_buy_init
+        mu_sell = [None] * (self.epochs + 1)
+        mu_sell[0] = self.mu_sell_init
+        delta_t = self.time_horizon / self.epochs  # delta t
+
+        # at time t, decide for time t+1
+        for t in range(self.epochs - 1):
+
+            # updating mo_buy vector
+            uniform_mob = rn.uniform()  # uniform_MO_buy
+            if uniform_mob < theta_buy(self.price[t]) * delta_t:  # approximating Poisson process arrival probability
+                mo_buy[t+1] = 1  # means there was a MO-buy arrival during current epoch
+
+            # updating no_sell vector
+            uniform_mos = rn.uniform()  # uniform_MO_sell
+            if uniform_mos < theta_sell(self.price[t]) * delta_t:  # approximating Poisson process
+                mo_sell[t+1] = 1  # means there was a MO-sell arrival during current epoch
+
+            # updating mu_buy vector: there might be a jump size of eta size
+            mu_buy[t+1] = (1-self.kappa) * mu_buy[t] * delta_t + (self.eta * (mo_buy[t+1] == 1))  # note: we have to consider mo_buy[t+1] since mu_t - mu_t-1 = -kappa mu_t-1 delta_t + eta(M-t-M-t-1)
+            mu_sell[t+1] = (1-self.kappa) * mu_sell[t] * delta_t + (self.eta * (mo_sell[t+1] == 1))
+
+            # updating uptick:
+            uniform_np = rn.uniform()
+            if uniform_np < mu_buy[t] * delta_t:
+                n_p[t+1] = n_p[t] + 1
+
+            # updating downtick:
+            uniform_nn = rn.uniform()
+            if uniform_nn < mu_sell[t] * delta_t:
+                n_n[t+1] = n_n[t] + 1
+
+            # updating price:
+            self.price[t+1] = self.price[t] + (n_p[t+1] - n_n[t+1])
+
+
+time_horizon = 10
+epochs = 1000
+initial_price = 120
+mu_buy_init = 45
+mu_sell_init= 55
+eta = 3
+kappa = .5
+
+m = Market(time_horizon, epochs, initial_price, mu_buy_init, mu_sell_init, eta, kappa)
+m.run_market()
+times = range(len(m.price))
+plt.plot(times, m.price, drawstyle="steps-post")
+plt.ylim(110, 130)
+plt.show()
+
