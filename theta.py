@@ -1,5 +1,5 @@
-alpha, beta = .2, .3
-a, b = .10, -.4
+alpha, beta = .2, 2
+a, b = .10, -4
 
 
 def theta_buy(S):
